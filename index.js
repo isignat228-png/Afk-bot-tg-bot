@@ -2,8 +2,8 @@ const TelegramBot = require('node-telegram-bot-api')
 const mineflayer = require('mineflayer')
 
 // ================== НАСТРОЙКИ ==================
-const TOKEN = "8634910652:AAEdvpCj49c07EyBzviOe18M8g2pWqq05g4"
-const OWNER_ID = 8465432674 // <-- твой Telegram ID
+const TOKEN = "8634910652:AAHZTT_UYgeow0pPjY6BWb8LE3_s1yvNtNU"
+const OWNER_ID = 8465432674
 
 const MC_CONFIG = {
   host: 'TweksMine.aternos.me',
@@ -17,6 +17,8 @@ const PASSWORD = "12349999"
 // ================== ПЕРЕМЕННЫЕ ==================
 let bot = null
 let startTime = null
+let reconnectTimeout = null
+let manualStop = false
 
 const tg = new TelegramBot(TOKEN, { polling: true })
 
@@ -33,23 +35,50 @@ function checkAccess(msg) {
 function startBot() {
   if (bot) return
 
+  manualStop = false
+
   bot = mineflayer.createBot(MC_CONFIG)
   startTime = Date.now()
 
   bot.on('spawn', () => {
     console.log("MC бот зашёл")
+    tg.sendMessage(OWNER_ID, "🟢 Minecraft бот подключился")
 
     setTimeout(() => {
       bot.chat(`/register ${PASSWORD} ${PASSWORD}`)
+
       setTimeout(() => {
         bot.chat(`/login ${PASSWORD}`)
       }, 3000)
+
     }, 3000)
   })
 
   bot.on('end', () => {
     console.log("MC бот отключился")
     bot = null
+
+    if (manualStop) return
+
+    tg.sendMessage(
+      OWNER_ID,
+      "🔴 Бот отключился\n🔄 Переподключение через 3 секунды..."
+    )
+
+    if (reconnectTimeout) clearTimeout(reconnectTimeout)
+
+    reconnectTimeout = setTimeout(() => {
+      startBot()
+    }, 3000)
+  })
+
+  bot.on('kicked', (reason) => {
+    console.log("Кик:", reason)
+
+    tg.sendMessage(
+      OWNER_ID,
+      `⚠️ Бот был кикнут`
+    )
   })
 
   bot.on('error', (err) => {
@@ -59,12 +88,21 @@ function startBot() {
 
 function stopBot() {
   if (!bot) return
+
+  manualStop = true
+
+  if (reconnectTimeout) {
+    clearTimeout(reconnectTimeout)
+    reconnectTimeout = null
+  }
+
   bot.quit()
   bot = null
 }
 
 function getUptime() {
   if (!startTime) return "0 сек"
+
   return Math.floor((Date.now() - startTime) / 1000) + " сек"
 }
 
@@ -79,15 +117,14 @@ tg.onText(/\/start/, (msg) => {
     reply_markup: {
       keyboard: [
         ["🟢 Запустить", "🔴 Остановить"],
-        ["📊 Статус", "⏱ Время"],
-        ["💬 Отправить сообщение"]
+        ["📊 Статус", "⏱ Время"]
       ],
       resize_keyboard: true
     }
   })
 })
 
-// ================== ЛОГИКА ==================
+// ================== TELEGRAM ==================
 tg.on('message', (msg) => {
   const text = msg.text
   const chatId = msg.chat.id
@@ -95,29 +132,24 @@ tg.on('message', (msg) => {
   if (!text) return
   if (!checkAccess(msg)) return
 
-  // ▶️ запуск
   if (text === "🟢 Запустить") {
     startBot()
     return tg.sendMessage(chatId, "✅ Бот запущен")
   }
 
-  // ⛔ стоп
   if (text === "🔴 Остановить") {
     stopBot()
     return tg.sendMessage(chatId, "⛔ Бот остановлен")
   }
 
-  // 📊 статус
   if (text === "📊 Статус") {
     return tg.sendMessage(chatId, bot ? "🟢 Онлайн" : "🔴 Оффлайн")
   }
 
-  // ⏱ время
   if (text === "⏱ Время") {
     return tg.sendMessage(chatId, "⏱ Работает: " + getUptime())
   }
 
-  // 💬 отправка в Minecraft
   if (text.startsWith("💬 ")) {
     if (!bot) {
       return tg.sendMessage(chatId, "❌ Бот не запущен")
@@ -127,7 +159,7 @@ tg.on('message', (msg) => {
 
     bot.chat(mcMessage)
 
-    return tg.sendMessage(chatId, "📨 Отправлено в Minecraft: " + mcMessage)
+    return tg.sendMessage(chatId, "📨 Отправлено в Minecraft")
   }
 })
 

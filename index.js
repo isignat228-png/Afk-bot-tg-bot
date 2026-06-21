@@ -6,7 +6,7 @@ const TOKEN = "8634910652:AAHZTT_UYgeow0pPjY6BWb8LE3_s1yvNtNU"
 const OWNER_ID = 8465432674
 
 const MC_CONFIG = {
-  host: 'TweksMine.aternos.me',
+  host: 'Tw3ksMin1.aternos.me',
   port: 23351,
   username: 'LoveTweksMine',
   version: '1.16.5'
